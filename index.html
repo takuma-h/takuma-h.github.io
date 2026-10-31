@@ -1,0 +1,704 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OWカスタム チーム分け</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap">
+<style>
+:root{
+  /* 構成: 上に操作バー、左に名簿、右にチーム結果。斜めに切ったチーム見出しだけを大胆にして、他は静かに保つ */
+  --bg:#eceff5; --surface:#ffffff; --surface2:#f1f4f9; --line:#d3dae7;
+  --fg:#121a2b; --muted:#5a6780;
+  --accent:#f5a31a; --accent-fg:#1c1303;
+  --ta:#2f6df0; --tb:#d93a52; --on-team:#ffffff;
+  --warn-bg:#fff0d2; --warn-fg:#7d4a00;
+  --rk0:#a9744f; --rk1:#98a3b3; --rk2:#e0a81c; --rk3:#35aaa2; --rk4:#4f86f0; --rk5:#9a6be0; --rk6:#e5738a; --rk7:#ff8a3d;
+  --f-display:"Barlow Condensed","Noto Sans JP","Hiragino Sans","Yu Gothic",sans-serif;
+  --f-body:"Noto Sans JP","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0c121e; --surface:#141c2c; --surface2:#1b2539; --line:#28344e;
+    --fg:#e7ecf6; --muted:#8d9ab3;
+    --accent:#f7ac2c; --accent-fg:#1c1303;
+    --ta:#5b8cff; --tb:#ff6a80; --on-team:#0b1020;
+    --warn-bg:#3a2a0e; --warn-fg:#ffc36b;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0c121e; --surface:#141c2c; --surface2:#1b2539; --line:#28344e;
+  --fg:#e7ecf6; --muted:#8d9ab3;
+  --accent:#f7ac2c; --accent-fg:#1c1303;
+  --ta:#5b8cff; --tb:#ff6a80; --on-team:#0b1020;
+  --warn-bg:#3a2a0e; --warn-fg:#ffc36b;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{
+  background:var(--bg); color:var(--fg);
+  font:14px/1.6 var(--f-body);
+  padding-block:20px 48px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.wrap{
+  max-width:1180px; margin:0 auto; display:grid; gap:18px;
+  grid-template-columns:minmax(0,1fr);
+  grid-template-areas:"top" "ctl" "res" "ros";
+}
+.wrap > *{min-width:0}
+@media (min-width:900px){
+  .wrap{
+    grid-template-columns:minmax(360px,440px) minmax(0,1fr);
+    grid-template-rows:auto auto 1fr;
+    grid-template-areas:"top top" "ros ctl" "ros res";
+    column-gap:24px; align-items:start;
+  }
+}
+.top{grid-area:top}
+.ctl{grid-area:ctl}
+.res{grid-area:res}
+.ros{grid-area:ros}
+
+h1{
+  margin:0; font:700 34px/1.1 var(--f-display); letter-spacing:.04em;
+}
+h1 span{color:var(--muted);font-weight:500}
+.top p{margin:6px 0 0;color:var(--muted)}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:6px}
+.ctl{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:12px 14px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.seg button{
+  border:0;background:transparent;padding:0 14px;height:40px;cursor:pointer;
+  font:600 16px var(--f-display);letter-spacing:.04em;color:var(--muted);
+}
+.seg button + button{border-left:1px solid var(--line)}
+.seg button small{display:block;font:400 10px/1 var(--f-body);letter-spacing:0;margin-top:1px}
+.seg button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+.count{margin:0;color:var(--muted);font-size:13px;flex:1 1 140px;min-width:0}
+.primary{
+  margin-left:auto;height:44px;padding:0 26px;border:0;border-radius:4px;cursor:pointer;
+  background:var(--accent);color:var(--accent-fg);font:700 18px var(--f-display);letter-spacing:.08em;
+}
+.primary:hover{filter:brightness(1.06)}
+.ghost{
+  height:32px;padding:0 12px;border:1px solid var(--line);background:var(--surface);
+  border-radius:4px;cursor:pointer;font-size:12.5px;color:var(--fg);
+}
+.ghost:hover{border-color:var(--muted)}
+
+.sec-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+h2{margin:0;font:700 22px/1.2 var(--f-display);letter-spacing:.06em}
+h2 span{font-size:15px;color:var(--muted);font-weight:500;margin-left:6px}
+.tools{display:flex;gap:6px}
+.sample-note{margin:0 0 8px;padding:8px 12px;background:var(--warn-bg);color:var(--warn-fg);border-radius:4px;font-size:12.5px}
+.legend{margin:0 0 8px;color:var(--muted);font-size:12.5px}
+
+.roster{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--line);border-radius:6px}
+.pl{
+  display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px 10px;align-items:center;
+  padding:10px 12px;border-top:1px solid var(--line);
+}
+.pl:first-child{border-top:0}
+.chk{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);cursor:pointer}
+.chk input{width:18px;height:18px;margin:0;accent-color:var(--accent)}
+.nm-in{
+  min-width:0;height:36px;padding:0 10px;border:1px solid transparent;border-radius:4px;
+  background:var(--surface2);font-weight:500;
+}
+.nm-in:focus{border-color:var(--accent);outline:none}
+.del{
+  width:32px;height:32px;border:0;background:transparent;color:var(--muted);
+  font-size:20px;line-height:1;cursor:pointer;border-radius:4px;
+}
+.del:hover{background:var(--surface2);color:var(--fg)}
+.pl2{grid-column:1 / -1;display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.pl2 select{
+  height:34px;padding:0 8px;border:1px solid var(--line);border-radius:4px;background:var(--surface);
+}
+.roles{display:flex;gap:6px;margin-left:auto}
+.chip{
+  position:relative;width:38px;height:34px;border:1px dashed var(--line);background:transparent;
+  color:var(--muted);font:700 16px var(--f-display);border-radius:4px;cursor:pointer;
+}
+.chip.r1{border-style:solid;border-color:var(--muted);background:var(--surface2);color:var(--fg)}
+.chip.r2{border-style:solid;border-color:var(--accent);background:var(--accent);color:var(--accent-fg)}
+.chip.r2::after{content:"★";position:absolute;top:0;right:3px;font-size:9px;line-height:1.3}
+.pl.off .nm-in,.pl.off .pl2{opacity:.5}
+
+.bulk{margin-top:10px}
+.bulk summary{cursor:pointer;color:var(--muted);font-size:12.5px}
+.bulk textarea{
+  display:block;width:100%;margin:8px 0;padding:8px 10px;border:1px solid var(--line);
+  border-radius:4px;background:var(--surface);resize:vertical;
+}
+
+.rk{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;white-space:nowrap;color:var(--fg)}
+.rk i{width:10px;height:10px;border-radius:2px;display:inline-block;transform:rotate(45deg)}
+
+.teams{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px}
+.team{--tc:var(--ta);background:var(--surface);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.team.b{--tc:var(--tb)}
+.team-head{
+  display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:2px 10px;
+  padding:8px 30px 8px 14px;background:var(--tc);color:var(--on-team);
+  clip-path:polygon(0 0,100% 0,calc(100% - 18px) 100%,0 100%);
+}
+.team-head h3{margin:0;font:700 26px/1.1 var(--f-display);letter-spacing:.08em}
+.team-head span{font-size:12px;font-weight:500}
+.rows{list-style:none;margin:0;padding:0}
+.row{
+  display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:8px;align-items:center;
+  padding:9px 14px;border-top:1px solid var(--line);
+}
+.row.free{grid-template-columns:minmax(0,1fr) auto}
+.row:first-child{border-top:0}
+.role{font:600 12px var(--f-display);letter-spacing:.1em;color:var(--muted)}
+.row .nm{font-weight:700;min-width:0;overflow-wrap:anywhere}
+.tag{
+  display:inline-block;margin-left:6px;padding:0 6px;border-radius:3px;font-size:10.5px;font-weight:500;
+  background:var(--warn-bg);color:var(--warn-fg);vertical-align:1px;
+}
+
+.bal{margin-top:14px;padding:12px 14px}
+.bal-top{display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px 12px;align-items:baseline}
+.bal-top strong{font:700 24px/1 var(--f-display);letter-spacing:.02em}
+.bal-top .m{color:var(--muted);font-size:12.5px;font-variant-numeric:tabular-nums}
+.bal-bar{display:flex;gap:2px;height:8px;margin-top:8px}
+.bal-bar i{display:block;border-radius:2px}
+.bal-bar .a{background:var(--ta)}
+.bal-bar .b{background:var(--tb)}
+.bench{margin:12px 0 0;color:var(--muted);font-size:13px}
+.bench b{color:var(--fg);font-weight:500}
+.acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.acts .ghost{height:36px}
+.copybox{
+  display:block;width:100%;min-height:130px;margin-top:10px;padding:8px 10px;border:1px solid var(--line);
+  border-radius:4px;background:var(--surface);
+}
+.status{min-height:1.6em;margin:8px 0 0;color:var(--muted);font-size:12.5px}
+.note{margin:6px 0 0;color:var(--muted);font-size:12px}
+.msg{padding:16px 18px;background:var(--surface);border:1px solid var(--line);border-radius:6px}
+.msg h3{margin:0 0 4px;font:700 20px var(--f-display);letter-spacing:.06em}
+.msg p{margin:0;color:var(--muted)}
+.row,.pl{font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:no-preference){
+  .primary,.ghost,.chip{transition:filter .12s, border-color .12s}
+}
+</style>
+
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>OWカスタム <span>チーム分け</span></h1>
+    <p>ランクと希望ロールから、戦力差が小さくなる組み合わせを探します。</p>
+  </header>
+
+  <section class="ctl panel" aria-label="分け方">
+    <div class="seg" role="group" aria-label="形式" id="seg"></div>
+    <p class="count" id="count"></p>
+    <button type="button" id="go" class="primary">チーム分け</button>
+  </section>
+
+  <section class="res" aria-label="チーム分けの結果">
+    <div id="result"></div>
+    <p class="status" id="status" role="status"></p>
+  </section>
+
+  <section class="ros" aria-label="プレイヤー名簿">
+    <div class="sec-h">
+      <h2>プレイヤー<span id="pc"></span></h2>
+      <div class="tools">
+        <button type="button" id="add" class="ghost">＋ 追加</button>
+        <button type="button" id="clear" class="ghost">全員削除</button>
+      </div>
+    </div>
+    <p class="sample-note" id="sampleNote">サンプルのプレイヤーが入っています。名前とランクを書き換えるか、「全員削除」で空にしてから使ってください。</p>
+    <p class="legend">T＝タンク　D＝DPS　S＝サポート。ボタンを押すごとに 不可 → 可 → 希望★ と切り替わります。希望がある人は、できるだけそのロールに入れます。</p>
+    <ul class="roster" id="roster"></ul>
+    <details class="bulk">
+      <summary>名前をまとめて追加</summary>
+      <label for="bulk" class="legend" style="display:block;margin-top:8px">1行に1人ずつ入力します。ランクはゴールド3、ロールは全て「可」で追加されます。</label>
+      <textarea id="bulk" rows="4"></textarea>
+      <button type="button" id="bulk-add" class="ghost">追加する</button>
+    </details>
+  </section>
+</div>
+
+<script>
+(function(){
+  var KEY = 'ow-team-splitter-v1';
+  var TIERS = ['ブロンズ','シルバー','ゴールド','プラチナ','ダイヤ','マスター','GM','チャンプ'];
+  var ROLE_KEYS = ['T','D','S'];
+  var ROLE_NAME = {T:'タンク', D:'DPS', S:'サポート'};
+  var ROLE_SHORT = {T:'TANK', D:'DPS', S:'SUPPORT'};
+  var STATE_NAME = ['不可','可','希望'];
+  var MODES = {
+    '5':    {label:'5v5', sub:'1-2-2', slots:['T','D','D','S','S']},
+    '6':    {label:'6v6', sub:'2-2-2', slots:['T','T','D','D','S','S']},
+    'free': {label:'ロールなし', sub:'ランクだけで分ける', slots:null}
+  };
+
+  function $(s){ return document.querySelector(s); }
+  function esc(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  function shuffle(a){
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+  function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function score(p){ return p.tier * 5 + (5 - p.div) + 1; }
+  function rankFromScore(s){
+    s = Math.max(1, Math.min(40, Math.round(s)));
+    return {tier: Math.floor((s - 1) / 5), div: 5 - ((s - 1) % 5)};
+  }
+  function rankLabel(s){ var r = rankFromScore(s); return TIERS[r.tier] + ' ' + r.div; }
+  function nameOf(p){ return (p.name || '').trim() || '名無し'; }
+  function hasMain(p){ return ROLE_KEYS.some(function(k){ return p.roles[k] === 2; }); }
+
+  function mk(name, tier, div, roles, on){
+    return {id: uid(), name: name, tier: tier, div: div,
+      roles: {T: roles.T || 0, D: roles.D || 0, S: roles.S || 0}, on: on !== false};
+  }
+  function sample(){
+    return [
+      mk('アキラ', 3, 3, {T:2, D:1}),
+      mk('ミナト', 2, 2, {D:2}),
+      mk('ユウ',   4, 5, {S:2, D:1}),
+      mk('ハルカ', 2, 4, {S:2}),
+      mk('ソウタ', 3, 5, {D:2, T:1}),
+      mk('リク',   1, 1, {D:1, S:1}),
+      mk('ナナミ', 2, 1, {T:1, S:2}),
+      mk('ケン',   4, 4, {D:2}),
+      mk('サキ',   3, 1, {S:2, D:1}),
+      mk('タイガ', 2, 5, {T:2, S:1}),
+      mk('ダイ',   1, 3, {D:2}, false)
+    ];
+  }
+  function load(){
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (raw) {
+        var s = JSON.parse(raw);
+        if (s && Array.isArray(s.players) && MODES[s.mode]) {
+          s.lastBench = Array.isArray(s.lastBench) ? s.lastBench : [];
+          return s;
+        }
+      }
+    } catch (e) {}
+    return {players: sample(), mode: '5', lastBench: [], sample: true};
+  }
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+
+  var state = load();
+  var res = null;
+
+  /* ---------- 分け方の計算 ---------- */
+  function costOf(arr, slotRoles, per){
+    var sa = 0, sb = 0, off = 0;
+    var ra = {T:0, D:0, S:0}, rb = {T:0, D:0, S:0};
+    for (var i = 0; i < arr.length; i++) {
+      var p = arr[i], r = slotRoles[i], s = score(p);
+      if (i < per) { sa += s; ra[r] += s; } else { sb += s; rb[r] += s; }
+      if (p.roles[r] === 1 && hasMain(p)) off++;
+    }
+    var rd = 0;
+    ROLE_KEYS.forEach(function(r){ rd += Math.abs(ra[r] - rb[r]); });
+    return Math.abs(sa - sb) + 0.5 * rd + 2.5 * off;
+  }
+
+  function matchRoles(players, slotRoles){
+    var n = players.length;
+    var matchSlot = [];
+    for (var i = 0; i < n; i++) matchSlot.push(-1);
+    var order = shuffle(players.map(function(_, i){ return i; }));
+    var adj = players.map(function(p){
+      var list = [];
+      for (var s = 0; s < n; s++) if (p.roles[slotRoles[s]] > 0) list.push(s);
+      return shuffle(list);
+    });
+    function tryK(u, seen){
+      for (var k = 0; k < adj[u].length; k++) {
+        var s = adj[u][k];
+        if (seen[s]) continue;
+        seen[s] = true;
+        if (matchSlot[s] < 0 || tryK(matchSlot[s], seen)) { matchSlot[s] = u; return true; }
+      }
+      return false;
+    }
+    for (var o = 0; o < order.length; o++) {
+      var seen = [];
+      for (var q = 0; q < n; q++) seen.push(false);
+      if (!tryK(order[o], seen)) return null;
+    }
+    return matchSlot.map(function(u){ return players[u]; });
+  }
+
+  function improve(arr, slotRoles, per){
+    var cur = costOf(arr, slotRoles, per), changed = true, guard = 0;
+    while (changed && guard++ < 20) {
+      changed = false;
+      for (var i = 0; i < arr.length; i++) {
+        for (var j = i + 1; j < arr.length; j++) {
+          var ri = slotRoles[i], rj = slotRoles[j];
+          if (arr[i].roles[rj] > 0 && arr[j].roles[ri] > 0) {
+            var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+            var c = costOf(arr, slotRoles, per);
+            if (c < cur - 1e-9) { cur = c; changed = true; }
+            else { t = arr[i]; arr[i] = arr[j]; arr[j] = t; }
+          }
+        }
+      }
+    }
+  }
+
+  function pickNear(pool, margin){
+    pool.sort(function(a, b){ return a.cost - b.cost; });
+    var best = pool[0].cost;
+    var near = pool.filter(function(c){ return c.cost <= best + margin; }).slice(0, 15);
+    return near[Math.floor(Math.random() * near.length)];
+  }
+
+  function err(msg){ return {error: msg}; }
+
+  function generate(){
+    var part = state.players.filter(function(p){ return p.on; });
+    var mode = MODES[state.mode];
+    if (part.length < 2) return err('参加するプレイヤーが2人以上必要です。');
+
+    if (mode.slots) {
+      var per = mode.slots.length, need = per * 2;
+      if (part.length < need) {
+        return err(mode.label + 'は' + need + '人必要です。あと' + (need - part.length) + '人を「参加」にしてください。');
+      }
+      var noRole = part.filter(function(p){ return !ROLE_KEYS.some(function(r){ return p.roles[r] > 0; }); });
+      if (noRole.length) {
+        return err(noRole.map(nameOf).join('、') + ' のロールが全て「不可」です。1つ以上を「可」か「希望」にしてください。');
+      }
+      var slotRoles = mode.slots.concat(mode.slots);
+      var prio = part.filter(function(p){ return state.lastBench.indexOf(p.id) >= 0; });
+      var rest = part.filter(function(p){ return state.lastBench.indexOf(p.id) < 0; });
+      var pool = [];
+      for (var k = 0; k < 12; k++) {
+        var active, bench;
+        if (part.length > need) {
+          var order = k < 8 ? shuffle(prio.slice()).concat(shuffle(rest.slice())) : shuffle(part.slice());
+          active = order.slice(0, need);
+          bench = order.slice(need);
+        } else {
+          active = part.slice();
+          bench = [];
+        }
+        for (var s = 0; s < 25; s++) {
+          var arr = matchRoles(active, slotRoles);
+          if (!arr) break;
+          improve(arr, slotRoles, per);
+          pool.push({arr: arr, bench: bench, cost: costOf(arr, slotRoles, per)});
+        }
+        if (part.length <= need && pool.length) break;
+      }
+      if (!pool.length) {
+        var needN = {T:0, D:0, S:0}, can = {T:0, D:0, S:0};
+        mode.slots.forEach(function(r){ needN[r] += 2; });
+        part.forEach(function(p){ ROLE_KEYS.forEach(function(r){ if (p.roles[r] > 0) can[r]++; }); });
+        return err('ロールの条件を満たす組み合わせがありません。ロールごとの「可」の人数（必要数）は、' +
+          ROLE_KEYS.map(function(r){ return ROLE_NAME[r] + ' ' + can[r] + '人（' + needN[r] + '）'; }).join('、') +
+          'です。');
+      }
+      var pick = pickNear(pool, 1);
+      var teamA = pick.arr.slice(0, per).map(function(p, i){ return {p: p, role: slotRoles[i]}; });
+      var teamB = pick.arr.slice(per).map(function(p, i){ return {p: p, role: slotRoles[per + i]}; });
+      var teams = Math.random() < 0.5 ? [teamA, teamB] : [teamB, teamA];
+      return {roleMode: true, teams: teams, bench: pick.bench, decided: false};
+    }
+
+    var n = part.length, na = Math.ceil(n / 2);
+    function mean(a){ return a.reduce(function(s, p){ return s + score(p); }, 0) / a.length; }
+    function cost(A, B){ return Math.abs(mean(A) - mean(B)) * n / 2; }
+    var fpool = [];
+    for (var r = 0; r < 200; r++) {
+      var sh = shuffle(part.slice());
+      var A = sh.slice(0, na), B = sh.slice(na);
+      var cur = cost(A, B), imp = true, g = 0;
+      while (imp && g++ < 30) {
+        imp = false;
+        for (var i = 0; i < A.length; i++) {
+          for (var j = 0; j < B.length; j++) {
+            var t = A[i]; A[i] = B[j]; B[j] = t;
+            var c = cost(A, B);
+            if (c < cur - 1e-9) { cur = c; imp = true; }
+            else { t = A[i]; A[i] = B[j]; B[j] = t; }
+          }
+        }
+      }
+      fpool.push({A: A, B: B, cost: cur});
+    }
+    var fp = pickNear(fpool, 1);
+    var ta = fp.A.map(function(p){ return {p: p, role: null}; });
+    var tb = fp.B.map(function(p){ return {p: p, role: null}; });
+    var ft = Math.random() < 0.5 ? [ta, tb] : [tb, ta];
+    return {roleMode: false, teams: ft, bench: [], decided: false};
+  }
+
+  /* ---------- 画面: 結果 ---------- */
+  function teamSum(t){ return t.reduce(function(s, m){ return s + score(m.p); }, 0); }
+  function rk(p){
+    return '<span class="rk"><i style="background:var(--rk' + p.tier + ')"></i>' + TIERS[p.tier] + ' ' + p.div + '</span>';
+  }
+  function teamHtml(t, i){
+    var s = teamSum(t);
+    var rows = t.map(function(m){
+      var p = m.p;
+      var off = res.roleMode && m.role && p.roles[m.role] === 1 && hasMain(p);
+      return '<li class="row' + (res.roleMode ? '' : ' free') + '">' +
+        (res.roleMode ? '<span class="role">' + ROLE_SHORT[m.role] + '</span>' : '') +
+        '<span class="nm">' + esc(nameOf(p)) + (off ? '<span class="tag">希望外</span>' : '') + '</span>' +
+        rk(p) + '</li>';
+    }).join('');
+    return '<section class="team ' + (i === 0 ? 'a' : 'b') + '">' +
+      '<header class="team-head"><h3>TEAM ' + 'AB'[i] + '</h3><span>平均 ' + rankLabel(s / t.length) + ' ・ 合計 ' + s + '</span></header>' +
+      '<ul class="rows">' + rows + '</ul></section>';
+  }
+  function renderResult(){
+    var el = $('#result');
+    if (!res) { el.innerHTML = ''; return; }
+    if (res.error) {
+      el.innerHTML = '<div class="msg"><h3>分けられません</h3><p>' + esc(res.error) + '</p></div>';
+      return;
+    }
+    var A = res.teams[0], B = res.teams[1];
+    var sa = teamSum(A), sb = teamSum(B);
+    var equal = A.length === B.length, n = A.length + B.length;
+    var diff = equal ? Math.abs(sa - sb) : Math.abs(sa / A.length - sb / B.length) * Math.round(n / 2);
+    var diffTxt = String(Math.round(diff * 10) / 10);
+    var verdict = diff <= 2 ? 'ほぼ互角' : diff <= 5 ? 'やや差あり' : '差が大きめ';
+    var html = '<div class="teams">' + teamHtml(A, 0) + teamHtml(B, 1) + '</div>';
+    html += '<div class="bal panel"><div class="bal-top"><span>戦力差 <strong>' + diffTxt + '</strong> pt ・ ' + verdict +
+      '</span><span class="m">A ' + sa + ' / B ' + sb + '</span></div>' +
+      '<div class="bal-bar" aria-hidden="true"><i class="a" style="flex:' + sa + '"></i><i class="b" style="flex:' + sb + '"></i></div></div>';
+    if (res.bench.length) {
+      html += '<p class="bench">控え：<b>' + res.bench.map(function(p){ return esc(nameOf(p)); }).join('、') + '</b></p>';
+    }
+    html += '<div class="acts"><button type="button" class="ghost" id="copy">結果をコピー</button>';
+    if (res.bench.length) {
+      html += '<button type="button" class="ghost" id="decide">' + (res.decided ? '決定済み' : 'この結果で決定（控えを次回優先）') + '</button>';
+    }
+    html += '</div><textarea id="copybox" class="copybox" readonly hidden aria-label="コピー用テキスト"></textarea>';
+    html += '<p class="note">ランクはブロンズ5＝1点〜チャンプ1＝40点に換算して計算しています。</p>';
+    el.innerHTML = html;
+  }
+  function toText(){
+    var lines = [];
+    res.teams.forEach(function(t, i){
+      var s = teamSum(t);
+      lines.push('【チーム' + 'AB'[i] + '】平均 ' + rankLabel(s / t.length) + '（合計 ' + s + '）');
+      if (res.roleMode) {
+        ROLE_KEYS.forEach(function(r){
+          var names = t.filter(function(m){ return m.role === r; }).map(function(m){ return nameOf(m.p); });
+          if (names.length) lines.push(ROLE_NAME[r] + '：' + names.join('、'));
+        });
+      } else {
+        lines.push(t.map(function(m){ return nameOf(m.p); }).join('、'));
+      }
+      lines.push('');
+    });
+    if (res.bench.length) lines.push('控え：' + res.bench.map(nameOf).join('、'));
+    return lines.join('\n').trim();
+  }
+
+  var statusTimer = 0;
+  function say(msg){
+    var el = $('#status');
+    el.textContent = msg;
+    clearTimeout(statusTimer);
+    statusTimer = setTimeout(function(){ el.textContent = ''; }, 4000);
+  }
+
+  $('#result').addEventListener('click', function(e){
+    if (e.target.closest('#copy')) {
+      var text = toText();
+      var box = $('#copybox');
+      var showBox = function(){
+        box.hidden = false; box.value = text; box.focus(); box.select();
+        say('自動コピーできませんでした。下の文字を選択してコピーしてください。');
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function(){ say('コピーしました。'); }, showBox);
+      } else { showBox(); }
+      return;
+    }
+    if (e.target.closest('#decide') && res && !res.error) {
+      state.lastBench = res.bench.map(function(p){ return p.id; });
+      res.decided = true;
+      save();
+      renderResult();
+      say('決定しました。次の分け直しでは、今回の控えを優先して出場させます。');
+    }
+  });
+
+  /* ---------- 画面: 操作バー ---------- */
+  function renderSeg(){
+    $('#seg').innerHTML = Object.keys(MODES).map(function(k){
+      var m = MODES[k];
+      return '<button type="button" id="mode-' + k + '" data-mode="' + k + '" aria-pressed="' + (state.mode === k) + '">' +
+        m.label + '<small>' + m.sub + '</small></button>';
+    }).join('');
+  }
+  function updateCount(){
+    var part = state.players.filter(function(p){ return p.on; }).length;
+    var m = MODES[state.mode], txt;
+    if (m.slots) {
+      var need = m.slots.length * 2;
+      txt = '参加 ' + part + '人 ／ 必要 ' + need + '人';
+      if (part > need) txt += '（控え ' + (part - need) + '人）';
+      else if (part < need) txt += '（あと ' + (need - part) + '人）';
+    } else {
+      txt = '参加 ' + part + '人';
+    }
+    $('#count').textContent = txt;
+    $('#pc').textContent = state.players.length + '人';
+  }
+  function go(){ res = generate(); renderResult(); updateCount(); }
+
+  $('#seg').addEventListener('click', function(e){
+    var b = e.target.closest('button[data-mode]');
+    if (!b) return;
+    state.mode = b.dataset.mode;
+    save(); renderSeg(); go();
+  });
+  $('#go').addEventListener('click', go);
+
+  /* ---------- 画面: 名簿 ---------- */
+  function find(id){ return state.players.filter(function(p){ return p.id === id; })[0]; }
+  function tierOpts(sel){
+    return TIERS.map(function(t, i){ return '<option value="' + i + '"' + (i === sel ? ' selected' : '') + '>' + t + '</option>'; }).join('');
+  }
+  function divOpts(sel){
+    return [5, 4, 3, 2, 1].map(function(d){ return '<option value="' + d + '"' + (d === sel ? ' selected' : '') + '>' + d + '</option>'; }).join('');
+  }
+  function chipLabel(r, v){ return ROLE_NAME[r] + '：' + STATE_NAME[v]; }
+  function renderRoster(){
+    $('#roster').innerHTML = state.players.map(function(p){
+      var chips = ROLE_KEYS.map(function(r){
+        var v = p.roles[r];
+        return '<button type="button" id="c-' + p.id + '-' + r + '" class="chip r' + v + '" data-role="' + r +
+          '" aria-label="' + chipLabel(r, v) + '" title="' + chipLabel(r, v) + '">' + r + '</button>';
+      }).join('');
+      return '<li class="pl' + (p.on ? '' : ' off') + '" data-id="' + p.id + '">' +
+        '<label class="chk" for="on-' + p.id + '"><input type="checkbox" class="on" id="on-' + p.id + '"' + (p.on ? ' checked' : '') + '><span>参加</span></label>' +
+        '<input type="text" class="nm-in" id="nm-' + p.id + '" aria-label="名前" value="' + esc(p.name) + '" maxlength="24" autocomplete="off">' +
+        '<button type="button" class="del" id="del-' + p.id + '" aria-label="' + esc(nameOf(p)) + 'を削除">×</button>' +
+        '<div class="pl2">' +
+          '<select class="tier" id="t-' + p.id + '" aria-label="ランク">' + tierOpts(p.tier) + '</select>' +
+          '<select class="div" id="d-' + p.id + '" aria-label="ディビジョン">' + divOpts(p.div) + '</select>' +
+          '<div class="roles">' + chips + '</div>' +
+        '</div></li>';
+    }).join('');
+    $('#sampleNote').hidden = !state.sample;
+  }
+  function touch(){
+    state.sample = false;
+    $('#sampleNote').hidden = true;
+    save();
+    updateCount();
+  }
+  var roster = $('#roster');
+  roster.addEventListener('click', function(e){
+    var li = e.target.closest('.pl');
+    if (!li) return;
+    var p = find(li.dataset.id);
+    if (!p) return;
+    var chip = e.target.closest('.chip');
+    if (chip) {
+      var r = chip.dataset.role;
+      p.roles[r] = (p.roles[r] + 1) % 3;
+      chip.className = 'chip r' + p.roles[r];
+      chip.setAttribute('aria-label', chipLabel(r, p.roles[r]));
+      chip.title = chipLabel(r, p.roles[r]);
+      touch();
+      return;
+    }
+    if (e.target.closest('.del')) {
+      state.players = state.players.filter(function(x){ return x.id !== p.id; });
+      state.lastBench = state.lastBench.filter(function(id){ return id !== p.id; });
+      touch(); renderRoster();
+    }
+  });
+  roster.addEventListener('input', function(e){
+    if (!e.target.classList.contains('nm-in')) return;
+    var p = find(e.target.closest('.pl').dataset.id);
+    if (p) { p.name = e.target.value; touch(); }
+  });
+  roster.addEventListener('change', function(e){
+    var li = e.target.closest('.pl');
+    if (!li) return;
+    var p = find(li.dataset.id);
+    if (!p) return;
+    if (e.target.classList.contains('on')) {
+      p.on = e.target.checked;
+      li.classList.toggle('off', !p.on);
+    } else if (e.target.classList.contains('tier')) {
+      p.tier = parseInt(e.target.value, 10);
+    } else if (e.target.classList.contains('div')) {
+      p.div = parseInt(e.target.value, 10);
+    }
+    touch();
+  });
+
+  function newPlayer(name){
+    return mk(name, 2, 3, {T:1, D:1, S:1});
+  }
+  $('#add').addEventListener('click', function(){
+    state.players.push(newPlayer('プレイヤー' + (state.players.length + 1)));
+    touch(); renderRoster();
+    var ins = roster.querySelectorAll('.nm-in');
+    var last = ins[ins.length - 1];
+    if (last) { last.focus(); last.select(); }
+  });
+  $('#bulk-add').addEventListener('click', function(){
+    var names = $('#bulk').value.split('\n').map(function(s){ return s.trim(); }).filter(Boolean).slice(0, 30);
+    if (!names.length) { say('名前を1行に1人ずつ入力してください。'); return; }
+    names.forEach(function(n){ state.players.push(newPlayer(n)); });
+    $('#bulk').value = '';
+    touch(); renderRoster();
+    say(names.length + '人を追加しました。');
+  });
+  var clearTimer = 0;
+  $('#clear').addEventListener('click', function(){
+    var btn = $('#clear');
+    if (!clearTimer) {
+      btn.textContent = 'もう一度押すと削除';
+      clearTimer = setTimeout(function(){ clearTimer = 0; btn.textContent = '全員削除'; }, 3000);
+      return;
+    }
+    clearTimeout(clearTimer); clearTimer = 0;
+    btn.textContent = '全員削除';
+    state.players = []; state.lastBench = [];
+    touch(); renderRoster(); go();
+  });
+
+  renderSeg();
+  renderRoster();
+  updateCount();
+  go();
+})();
+</script>
+
+</body>
+</html>
