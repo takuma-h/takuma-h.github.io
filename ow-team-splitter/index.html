@@ -266,7 +266,8 @@ h2 span{font-size:15px;color:var(--muted);font-weight:500;margin-left:6px}
     return a;
   }
   function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
-  function score(p){ return p.tier * 5 + (5 - p.div) + 1; }
+  var unrankedScore = 15;
+  function score(p){ return p.tier < 0 ? unrankedScore : p.tier * 5 + (5 - p.div) + 1; }
   function rankFromScore(s){
     s = Math.max(1, Math.min(40, Math.round(s)));
     return {tier: Math.floor((s - 1) / 5), div: 5 - ((s - 1) % 5)};
@@ -286,7 +287,7 @@ h2 span{font-size:15px;color:var(--muted);font-weight:500;margin-left:6px}
       mk('ユウ',   4, 5, {S:2, D:1}),
       mk('ハルカ', 2, 4, {S:2}),
       mk('ソウタ', 3, 5, {D:2, T:1}),
-      mk('リク',   1, 1, {D:1, S:1}),
+      mk('リク',   -1, 1, {D:1, S:1}),
       mk('ナナミ', 2, 1, {T:1, S:2}),
       mk('ケン',   4, 4, {D:2}),
       mk('サキ',   3, 1, {S:2, D:1}),
@@ -383,6 +384,8 @@ h2 span{font-size:15px;color:var(--muted);font-weight:500;margin-left:6px}
   function generate(){
     var part = state.players.filter(function(p){ return p.on; });
     var mode = MODES[state.mode];
+    var ranked = part.filter(function(p){ return p.tier >= 0; });
+    unrankedScore = ranked.length ? Math.round(ranked.reduce(function(s, p){ return s + score(p); }, 0) / ranked.length) : 15;
     if (part.length < 2) return err('参加するプレイヤーが2人以上必要です。');
 
     if (mode.slots) {
@@ -462,6 +465,7 @@ h2 span{font-size:15px;color:var(--muted);font-weight:500;margin-left:6px}
   /* ---------- 画面: 結果 ---------- */
   function teamSum(t){ return t.reduce(function(s, m){ return s + score(m.p); }, 0); }
   function rk(p){
+    if (p.tier < 0) return '<span class="rk"><i style="background:var(--line)"></i>ランクなし</span>';
     return '<span class="rk"><i style="background:var(--rk' + p.tier + ')"></i>' + TIERS[p.tier] + ' ' + p.div + '</span>';
   }
   function teamHtml(t, i){
@@ -503,7 +507,9 @@ h2 span{font-size:15px;color:var(--muted);font-weight:500;margin-left:6px}
       html += '<button type="button" class="ghost" id="decide">' + (res.decided ? '決定済み' : 'この結果で決定（控えを次回優先）') + '</button>';
     }
     html += '</div><textarea id="copybox" class="copybox" readonly hidden aria-label="コピー用テキスト"></textarea>';
-    html += '<p class="note">ランクはブロンズ5＝1点〜チャンプ1＝40点に換算して計算しています。</p>';
+    var anyUn = A.concat(B).some(function(m){ return m.p.tier < 0; });
+    html += '<p class="note">ランクはブロンズ5＝1点〜チャンプ1＝40点に換算して計算しています。' +
+      (anyUn ? 'ランクなしの人は、参加者の平均点（' + unrankedScore + '点）として扱っています。' : '') + '</p>';
     el.innerHTML = html;
   }
   function toText(){
@@ -590,7 +596,8 @@ h2 span{font-size:15px;color:var(--muted);font-weight:500;margin-left:6px}
   /* ---------- 画面: 名簿 ---------- */
   function find(id){ return state.players.filter(function(p){ return p.id === id; })[0]; }
   function tierOpts(sel){
-    return TIERS.map(function(t, i){ return '<option value="' + i + '"' + (i === sel ? ' selected' : '') + '>' + t + '</option>'; }).join('');
+    return '<option value="-1"' + (sel < 0 ? ' selected' : '') + '>ランクなし</option>' +
+      TIERS.map(function(t, i){ return '<option value="' + i + '"' + (i === sel ? ' selected' : '') + '>' + t + '</option>'; }).join('');
   }
   function divOpts(sel){
     return [5, 4, 3, 2, 1].map(function(d){ return '<option value="' + d + '"' + (d === sel ? ' selected' : '') + '>' + d + '</option>'; }).join('');
@@ -609,7 +616,7 @@ h2 span{font-size:15px;color:var(--muted);font-weight:500;margin-left:6px}
         '<button type="button" class="del" id="del-' + p.id + '" aria-label="' + esc(nameOf(p)) + 'を削除">×</button>' +
         '<div class="pl2">' +
           '<select class="tier" id="t-' + p.id + '" aria-label="ランク">' + tierOpts(p.tier) + '</select>' +
-          '<select class="div" id="d-' + p.id + '" aria-label="ディビジョン">' + divOpts(p.div) + '</select>' +
+          '<select class="div" id="d-' + p.id + '" aria-label="ディビジョン"' + (p.tier < 0 ? ' hidden' : '') + '>' + divOpts(p.div) + '</select>' +
           '<div class="roles">' + chips + '</div>' +
         '</div></li>';
     }).join('');
@@ -658,6 +665,7 @@ h2 span{font-size:15px;color:var(--muted);font-weight:500;margin-left:6px}
       li.classList.toggle('off', !p.on);
     } else if (e.target.classList.contains('tier')) {
       p.tier = parseInt(e.target.value, 10);
+      li.querySelector('.div').hidden = p.tier < 0;
     } else if (e.target.classList.contains('div')) {
       p.div = parseInt(e.target.value, 10);
     }
